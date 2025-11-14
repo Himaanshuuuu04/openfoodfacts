@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "../store";
-import { apiCache, CACHE_TTL, createCacheKey } from "@/lib/cache";
+import { cachedFetch } from "@/lib/cachedFetch";
+import { CACHE_TTL } from "@/lib/cache";
 
 // Types
 interface Product {
@@ -43,59 +44,28 @@ export const fetchProducts = createAsyncThunk(
   "home/fetchProducts",
   async (page: number = 1, { rejectWithValue }) => {
     try {
-      // Check cache first
-      const cacheKey = createCacheKey("home_products", page);
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await fetch(`/api/home?page=${page}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch products");
-      }
-      const data = await response.json();
-
-      // Cache the response for 5 minutes
-      apiCache.set(cacheKey, data, CACHE_TTL.MEDIUM);
-
+      const data = await cachedFetch(`/api/home?page=${page}`, {
+        cacheTTL: CACHE_TTL.MEDIUM,
+      });
       return data;
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch products");
     }
   }
 );
-
 export const fetchProductByBarcode = createAsyncThunk(
   "home/fetchProductByBarcode",
   async (barcode: string, { rejectWithValue }) => {
     try {
-      // Check cache first
-      const cacheKey = createCacheKey("product", barcode);
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await fetch(`/api/product?barcode=${barcode}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch product");
-      }
-      const data = await response.json();
-
-      // Cache product for 15 minutes (products don't change often)
-      apiCache.set(cacheKey, data, CACHE_TTL.LONG);
-
+      const data = await cachedFetch(`/api/product?barcode=${barcode}`, {
+        cacheTTL: CACHE_TTL.LONG,
+      });
       return data;
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch product");
     }
   }
-);
-
-// Slice
+); // Slice
 export const homeSlice = createSlice({
   name: "home",
   initialState,

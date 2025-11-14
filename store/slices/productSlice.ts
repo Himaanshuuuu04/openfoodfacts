@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "../store";
-import { apiCache, CACHE_TTL, createCacheKey } from "@/lib/cache";
+import { cachedFetch } from "@/lib/cachedFetch";
+import { CACHE_TTL } from "@/lib/cache";
 
 // Types
 interface Product {
@@ -67,23 +68,9 @@ export const fetchProductDetails = createAsyncThunk(
   "product/fetchProductDetails",
   async (barcode: string, { rejectWithValue }) => {
     try {
-      // Check cache first
-      const cacheKey = createCacheKey("product", barcode);
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await fetch(`/api/product?barcode=${barcode}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch product details");
-      }
-      const data = await response.json();
-
-      // Cache for 15 minutes
-      apiCache.set(cacheKey, data, CACHE_TTL.LONG);
-
+      const data = await cachedFetch(`/api/product?barcode=${barcode}`, {
+        cacheTTL: CACHE_TTL.LONG,
+      });
       return data;
     } catch (error: any) {
       return rejectWithValue(
@@ -91,9 +78,7 @@ export const fetchProductDetails = createAsyncThunk(
       );
     }
   }
-);
-
-// Slice
+); // Slice
 export const productSlice = createSlice({
   name: "product",
   initialState,

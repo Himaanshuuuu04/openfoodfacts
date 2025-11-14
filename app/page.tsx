@@ -34,6 +34,7 @@ import SearchBar from "@/components/SearchBar";
 import CategoryFilter from "@/components/CategoryFilter";
 import SortControl from "@/components/SortControl";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import CacheManager from "@/components/CacheManager";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function Home() {
@@ -119,6 +120,49 @@ export default function Home() {
     [dispatch, viewMode, selectedCategory]
   );
 
+  // Client-side sorting function
+  const sortProducts = useCallback(
+    (productsToSort: any[]) => {
+      if (!productsToSort || productsToSort.length === 0) return [];
+
+      const sorted = [...productsToSort];
+
+      if (sortBy === "name") {
+        sorted.sort((a: any, b: any) => {
+          const aName = a.product_name || "";
+          const bName = b.product_name || "";
+          return sortOrder === "asc"
+            ? aName.localeCompare(bName)
+            : bName.localeCompare(aName);
+        });
+      } else if (sortBy === "nutrition_grade") {
+        const gradeOrder = ["a", "b", "c", "d", "e"];
+        sorted.sort((a: any, b: any) => {
+          const aGrade =
+            a.nutrition_grades_tags?.[0]?.replace("en:", "") ||
+            a.nutriscore_grade ||
+            "e";
+          const bGrade =
+            b.nutrition_grades_tags?.[0]?.replace("en:", "") ||
+            b.nutriscore_grade ||
+            "e";
+          const aIndex = gradeOrder.indexOf(aGrade.toLowerCase());
+          const bIndex = gradeOrder.indexOf(bGrade.toLowerCase());
+          return sortOrder === "asc" ? aIndex - bIndex : bIndex - aIndex;
+        });
+      } else if (sortBy === "unique_scans_n") {
+        sorted.sort((a: any, b: any) => {
+          const aScans = a.unique_scans_n || 0;
+          const bScans = b.unique_scans_n || 0;
+          return sortOrder === "asc" ? aScans - bScans : bScans - aScans;
+        });
+      }
+
+      return sorted;
+    },
+    [sortBy, sortOrder]
+  );
+
   // Handle page change
   const handlePageChange = useCallback(
     (page: number) => {
@@ -151,26 +195,37 @@ export default function Home() {
   }, [dispatch, currentPage]);
 
   // Determine which products to display
-  const displayProducts =
+  const displayProducts = sortProducts(
     viewMode === "search"
       ? searchResults
       : viewMode === "barcode" && barcodeResult
       ? [barcodeResult]
       : viewMode === "category"
       ? categoryProducts
-      : products;
+      : products
+  );
 
   const isLoading =
     loading || searchLoading || barcodeLoading || categoryLoading;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 dark:from-black dark:via-zinc-900 dark:to-black">
       {/* Header */}
-      <header className="bg-white dark:bg-zinc-900 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            OpenFoodFacts Explorer
-          </h1>
+      <header className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl shadow-lg border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-md transform hover:rotate-6 transition-transform">
+              <span className="text-lg">🍎</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                OpenFoodFacts Explorer
+              </h1>
+              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                Discover healthy food products
+              </p>
+            </div>
+          </div>
           <SearchBar onSearch={handleSearch} />
         </div>
       </header>
@@ -262,6 +317,9 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Cache Manager */}
+      <CacheManager />
     </div>
   );
 }

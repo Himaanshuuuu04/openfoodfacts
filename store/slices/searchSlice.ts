@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "../store";
-import { apiCache, CACHE_TTL, createCacheKey } from "@/lib/cache";
+import { cachedFetch } from "@/lib/cachedFetch";
+import { CACHE_TTL } from "@/lib/cache";
 
 // Types
 interface Product {
@@ -77,60 +78,31 @@ export const searchProductsByName = createAsyncThunk(
   "search/searchProductsByName",
   async (searchTerm: string, { rejectWithValue }) => {
     try {
-      // Check cache first
-      const cacheKey = createCacheKey("search_name", searchTerm);
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return { data: cachedData, searchTerm };
-      }
-
-      const response = await fetch(
-        `/api/search/name?searchTerm=${encodeURIComponent(searchTerm)}`
+      const data = await cachedFetch(
+        `/api/search/name?searchTerm=${encodeURIComponent(searchTerm)}`,
+        {
+          cacheTTL: CACHE_TTL.MEDIUM,
+        }
       );
-      if (!response.ok) {
-        throw new Error("Failed to search products");
-      }
-      const data = await response.json();
-
-      // Cache search results for 5 minutes
-      apiCache.set(cacheKey, data, CACHE_TTL.MEDIUM);
-
       return { data, searchTerm };
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to search products");
     }
   }
 );
-
 export const searchProductByBarcode = createAsyncThunk(
   "search/searchProductByBarcode",
   async (barcode: string, { rejectWithValue }) => {
     try {
-      // Check cache first (reuse product cache)
-      const cacheKey = createCacheKey("product", barcode);
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await fetch(`/api/search/barcode?barcode=${barcode}`);
-      if (!response.ok) {
-        throw new Error("Failed to find product");
-      }
-      const data = await response.json();
-
-      // Cache for 15 minutes
-      apiCache.set(cacheKey, data, CACHE_TTL.LONG);
-
+      const data = await cachedFetch(`/api/search/barcode?barcode=${barcode}`, {
+        cacheTTL: CACHE_TTL.LONG,
+      });
       return data;
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to find product");
     }
   }
 );
-
 export const searchProductsByCategory = createAsyncThunk(
   "search/searchProductsByCategory",
   async (
@@ -177,31 +149,15 @@ export const fetchAllCategories = createAsyncThunk(
   "search/fetchAllCategories",
   async (_, { rejectWithValue }) => {
     try {
-      // Check cache first
-      const cacheKey = createCacheKey("all_categories");
-      const cachedData = apiCache.get(cacheKey);
-
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const response = await fetch("/api/search/category-all");
-      if (!response.ok) {
-        throw new Error("Failed to fetch categories");
-      }
-      const data = await response.json();
-
-      // Cache for 1 hour (categories rarely change)
-      apiCache.set(cacheKey, data, CACHE_TTL.VERY_LONG);
-
+      const data = await cachedFetch("/api/search/category-all", {
+        cacheTTL: CACHE_TTL.VERY_LONG,
+      });
       return data;
     } catch (error: any) {
       return rejectWithValue(error.message || "Failed to fetch categories");
     }
   }
-);
-
-// Slice
+); // Slice
 export const searchSlice = createSlice({
   name: "search",
   initialState,

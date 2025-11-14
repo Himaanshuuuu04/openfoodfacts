@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
+import { unstable_cache } from "next/cache";
 import axios from "@/lib/axios";
-export async function GET(request: NextRequest) {
-  const category = request.nextUrl.searchParams.get("category") || "1";
-  const sortBy = request.nextUrl.searchParams.get("sortBy") || "unique_scans_n";
-  const order = request.nextUrl.searchParams.get("order") || "asc";
-  try {
+
+const getCachedCategoryProducts = unstable_cache(
+  async (category: string, sortBy: string, order: string) => {
     const response = await axios.get(`category/${category}.json`);
     let products = response.data.products || [];
 
@@ -34,9 +33,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return new Response(JSON.stringify({ ...response.data, products }), {
+    return { ...response.data, products };
+  },
+  ["category-products"],
+  {
+    revalidate: 600, // 10 minutes
+    tags: ["category"],
+  }
+);
+
+export async function GET(request: NextRequest) {
+  const category = request.nextUrl.searchParams.get("category") || "1";
+  const sortBy = request.nextUrl.searchParams.get("sortBy") || "unique_scans_n";
+  const order = request.nextUrl.searchParams.get("order") || "asc";
+  try {
+    const data = await getCachedCategoryProducts(category, sortBy, order);
+    return new Response(JSON.stringify(data), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1200",
+      },
     });
   } catch (error) {
     return new Response(
